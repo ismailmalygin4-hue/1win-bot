@@ -1,14 +1,12 @@
 import os
 import asyncio
 import logging
-import random
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.exceptions import TelegramBadRequest
 
-BOT_TOKEN = "8818268231:AAGN79M1O9DuExlmFNCUjLDLGNc_Axyqte0"
+BOT_TOKEN = "8818268231:AAHr9C0Cl59g4kNZGg5q1kPaM5QK2a-oPhQ"
 REF_LINK_1WIN = "https://one-vv4866.com/open-register&p=i398"
 ADMIN_USERNAME = "@Dexterslive"
 
@@ -16,6 +14,16 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+@dp.message(Command("start"))
+async def start_handler(message: types.Message):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Зарегистрироваться", url=REF_LINK_1WIN)],
+            [InlineKeyboardButton(text="Поддержка", url=f"https://t.me/{ADMIN_USERNAME.replace('@', '')}")]
+        ]
+    )
+    await message.answer("Добро пожаловать! Нажмите кнопку ниже для перехода:", reply_markup=keyboard)
 
 async def handle(request):
     return web.Response(text="Bot is running 24/7!")
@@ -38,4 +46,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        print("Бот остановлен.")                                                                                
+        print("Бот остановлен.")                                                               
