@@ -154,9 +154,10 @@ async def main():
     print("-----------------------------------")
     print("Бот успешно запущен и готов к работе!")
     print("-----------------------------------")
-    await dp.start_polling(bot)
-  if __name__ == "__main__":
+   await dp.start_polling(bot)
+
+if __name__ == "__main__":
       try:
-        asyncio.run(main())
+         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("Бот остановлен.")
