@@ -144,10 +144,10 @@ async def handle(request):
 
 async def main():
     app = web.Application()
-    app.router.add_get("/", handle)
+   app.router.add_get("/", handle)
     runner = web.AppRunner(app)
     await runner.setup()
-  port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
@@ -160,4 +160,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        print("Бот остановлен.")
+        print("Бот остановлен.")                                                                                              
