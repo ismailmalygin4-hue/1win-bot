@@ -6,7 +6,6 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Вставьте ваш новый токен из BotFather прямо в кавычки ниже:
 BOT_TOKEN = "8818268231:AAGbMU8_r40HRmB5773kS9dGK2e1yjR4h1g"
 REF_LINK_1WIN = "https://one-vv4866.com/open-register&p=i398"
 ADMIN_USERNAME = "@Dexterslive"
