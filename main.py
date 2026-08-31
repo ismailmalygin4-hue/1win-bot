@@ -25,16 +25,16 @@ class RegistrationStates(StatesGroup):
 def get_register_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔗 Зарегистрироваться на 1win", url=REF_LINK_1WIN)],
-            [InlineKeyboardButton(text="✅ Я зарегистрировался, отправить ID", callback_data="send_id_step")]
+            [InlineKeyboardButton(text="🚀 Создать аккаунт 1win", url=REF_LINK_1WIN)],
+            [InlineKeyboardButton(text="📥 Отправить мой ID", callback_data="send_id_step")]
         ]
     )
 
 def get_main_menu_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🎯 Получить сигнал", callback_data="get_signal")],
-            [InlineKeyboardButton(text="💬 Техническая поддержка", url=f"https://t.me/{ADMIN_USERNAME}")]
+            [InlineKeyboardButton(text="🔥 Получить сигнал раунда", callback_data="get_signal")],
+            [InlineKeyboardButton(text="🆘 Помощь и саппорт", url=f"https://t.me/{ADMIN_USERNAME}")]
         ]
     )
 
@@ -43,20 +43,18 @@ async def start_handler(message: types.Message, state: FSMContext):
     await state.clear()
     
     text = (
-        "🤖 **Добро пожаловать в официальный бот сигналов!**\n\n"
-        "✦ ── ✦ ── ✦ ── ✦ ── ✦\n"
-        "Чтобы получить доступ к алгоритму, выполните два быстрых шага:\n\n"
-        "1️⃣ Создайте новый аккаунт по кнопке ниже.\n"
-        "2️⃣ Скопируйте **ID** из профиля и отправьте его сюда.\n"
-        "✦ ── ✦ ── ✦ ── ✦ ── ✦"
+        "🎮 Приветствую, игрок! Хочешь забирать максимум профита из каждого раунда?\n\n"
+        "🚀 Наша система готова выдавать точные подсказки, но для начала нужно объединить аккаунты:\n\n"
+        "👉 **Шаг 1:** Создай аккаунт по кнопке ниже.\n"
+        "👉 **Шаг 2:** Скинь сюда свой ID из профиля."
     )
     await message.answer(text, reply_markup=get_register_keyboard(), parse_mode="Markdown")
 
 @dp.callback_query(F.data == "send_id_step")
 async def process_send_id_button(callback: types.CallbackQuery, state: FSMContext):
     text = (
-        "📲 **Активация доступа**\n\n"
-        "Откройте приложение или сайт 1win, зайдите в профиль, скопируйте свой **ID** (цифровой номер) и отправьте его ответным сообщением в этот чат."
+        "🕹 **Почти у цели!**\n\n"
+        "Зайди в личный кабинет 1win, скопируй свой **цифровой ID** и отправь его ответным сообщением в этот чат 👇"
     )
     await callback.message.answer(text, parse_mode="Markdown")
     await state.set_state(RegistrationStates.waiting_for_id)
@@ -70,18 +68,18 @@ async def receive_user_id(message: types.Message, state: FSMContext):
     await state.clear()
     
     text = (
-        "🎉 **Доступ успешно активирован!**\n\n"
-        f"Ваш ID: `{user_id_text}` зафиксирован в системе.\n\n"
-        "Выберите нужное действие из меню ниже:"
+        "🏆 **Отлично! Связка прошла успешно.**\n\n"
+        f"Твой ID: `{user_id_text}` записан в базу данных.\n\n"
+        "Включай турбо-режим и забирай сигналы! 👇"
     )
     await message.answer(text, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
 
 @dp.callback_query(F.data == "get_signal")
 async def send_signal_handler(callback: types.CallbackQuery):
     text = (
-        "📊 **Анализ раунда завершен**\n\n"
-        "🎲 Рекомендация: **Меньше / Больше**\n"
-        "⚡️ Статус: *Ожидаем следующий сигнал...*"
+        "⚡️ **АНАЛИЗ РАУНДА** ⚡️\n\n"
+        "🎲 Прогноз: **Меньше / Больше**\n"
+        "⏳ *Ожидай появление нового раунда...*"
     )
     await callback.message.answer(text, parse_mode="Markdown")
     await callback.answer()
@@ -112,7 +110,6 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    asyncio.create_tag = asyncio.create_task # фикс совместимости
     asyncio.create_task(self_ping())
     print("Бот успешно запущен!")
     await dp.start_polling(bot)
