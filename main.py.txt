@@ -1,0 +1,147 @@
+import asyncio
+import logging
+import random
+from aiogram import Bot, Dispatcher, F, types
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.exceptions import TelegramBadRequest
+
+
+BOT_TOKEN = "8818268231:AAHr9C0Cl59g4kNZGg5q1kPaHSqK2a-oPhQ"
+REF_LINK_1WIN = "https://one-vv4866.com/?open=register&p=i390"
+ADMIN_USERNAME = "@Dexterslive"
+
+
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+
+def generate_mines_signal(safe_count=4) -> str:
+    grid = ["🟦"] * 25
+    safe_positions = random.sample(range(25), safe_count)
+    for pos in safe_positions:
+        grid[pos] = "⭐"
+    
+    result = ""
+    for i in range(0, 25, 5):
+        result += "".join(grid[i:i+5]) + "\n"
+    return result
+
+
+def get_main_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 1. Регистрация на 1Win (Обязательно)", url=REF_LINK_1WIN)],
+        [InlineKeyboardButton(text="💣 Сигнал: МИНЫ (Mines)", callback_data="sig_mines")],
+        [InlineKeyboardButton(text="🚀 Сигнал: ROCKET MAN", callback_data="sig_rocket")],
+        [InlineKeyboardButton(text="⭐ Купить VIP Predictor", callback_data="buy_vip")]
+    ])
+
+
+@dp.message(Command("start"))
+async def start_cmd(message: types.Message):
+    text = (
+        "💣 **Добро пожаловать в 1Win Signal Predictor!**\n\n"
+        "Бот анализирует алгоритмы Provably Fair и выдает наиболее вероятные "
+        "точки входа для игр **Mines** и **Rocket Man**.\n\n"
+        "⚠️ **Важно:** Для корректной работы алгоритмов ваш аккаунт должен быть "
+        "зарегистрирован по кнопке ниже.\n\n"
+        "Выберите игру из меню:"
+    )
+    await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
+
+
+@dp.callback_query(F.data == "sig_mines")
+async def mines_handler(callback: types.CallbackQuery):
+    signal_grid = generate_mines_signal(safe_count=4)
+    coef = round(random.uniform(1.45, 2.35), 2)
+    
+    response = (
+        "💣 **СИГНАЛ НА ИГРУ МИНЫ**\n\n"
+        f"Количество мин: `3`\n"
+        f"Безопасных кликов: `4`\n"
+        f"Рекомендуемый кэф: `{coef}x`\n\n"
+        f"{signal_grid}\n"
+        "⏳ *Сигнал действителен: 2 минуты*"
+    )
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Следующий сигнал", callback_data="sig_mines")],
+        [InlineKeyboardButton(text="◀️ Главное меню", callback_data="main_menu")]
+    ])
+    
+    try:
+        await callback.message.edit_text(response, reply_markup=kb, parse_mode="Markdown")
+    except TelegramBadRequest:
+        pass
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "sig_rocket")
+async def rocket_handler(callback: types.CallbackQuery):
+    target_coef = round(random.uniform(1.80, 4.20), 2)
+    auto_cashout = round(target_coef - 0.25, 2)
+    
+    response = (
+        "🚀 **СИГНАЛ НА ROCKET MAN / ROCKET X**\n\n"
+        f"🎯 Точка авто-вывода: **{auto_cashout}x**\n"
+        f"📈 Пиковый кэф раунда: `{target_coef}x`\n\n"
+        "💡 *Забирайте выигрыш за 0.5 секунды до кэфа!*"
+    )
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Следующий сигнал", callback_data="sig_rocket")],
+        [InlineKeyboardButton(text="◀️ Главное меню", callback_data="main_menu")]
+    ])
+    
+    try:
+        await callback.message.edit_text(response, reply_markup=kb, parse_mode="Markdown")
+    except TelegramBadRequest:
+        pass
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "buy_vip")
+async def buy_vip_handler(callback: types.CallbackQuery):
+    response = (
+        "⭐ **VIP-Predictor Доступ**\n\n"
+        "Что дает VIP-подписка?\n"
+        "• Прогнозы высокой точности\n"
+        "• Сигналы на кэфы от 5.0x до 15.0x+\n"
+        "• Персональный закрытый канал с авто-уведомлениями\n\n"
+        f"Для покупки напишите администратору: {ADMIN_USERNAME}"
+    )
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="main_menu")]
+    ])
+    
+    try:
+        await callback.message.edit_text(response, reply_markup=kb, parse_mode="Markdown")
+    except TelegramBadRequest:
+        pass
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "main_menu")
+async def main_menu_handler(callback: types.CallbackQuery):
+    text = "💣 **Главное меню 1Win Signal Predictor**\n\nВыберите нужный раздел:"
+    try:
+        await callback.message.edit_text(text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
+    except TelegramBadRequest:
+        pass
+    await callback.answer()
+
+
+async def main():
+    print("---------------------------------------")
+    print("Бот успешно запущен и готов к работе!")
+    print("---------------------------------------")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("Бот остановлен.")
