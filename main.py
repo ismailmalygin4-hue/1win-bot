@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest
 
-BOT_TOKEN = "8818268231:AAHr9C0Cl59g4kNZGg5q1kPaM5QK2a-oPhQ"
+BOT_TOKEN = "8818268231:AAGN79M1O9DuExlmFNCUjLDLGNc_Axyqte0"
 REF_LINK_1WIN = "https://one-vv4866.com/open-register&p=i398"
 ADMIN_USERNAME = "@Dexterslive"
 
