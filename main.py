@@ -26,7 +26,7 @@ def get_register_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Привязать ID / Начать", callback_data="start_registration")],
         [InlineKeyboardButton(text="💎 Играть / 1win", url="https://one-vv4866.com/?open=register&p=i390")],
-        [InlineKeyboardButton(text="💬 Поддержка", url="https://t.me/Dexterslive")]
+        [InlineKeyboardButton(text="💬 Поддержка", url="@Dexterslive")]
     ])
 
 def get_mines_keyboard() -> InlineKeyboardMarkup:
