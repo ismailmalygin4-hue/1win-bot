@@ -27,7 +27,7 @@ def get_register_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Привязать ID / Начать", callback_data="start_registration")],
         [InlineKeyboardButton(text="💎 Играть / 1win", url="https://one-vv4866.com/?open=register&p=i390")],
-        [InlineKeyboardButton(text="💬 Поддержка", url="https://t.me/Dexterslive")]
+        [InlineKeyboardButton(text="💬 Поддержка", callback_data="show_support")]
     ])
 
 def get_mines_keyboard() -> InlineKeyboardMarkup:
@@ -44,7 +44,7 @@ def get_mines_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu"),
-            InlineKeyboardButton(text="💬 Поддержка", url="https://t.me/Dexterslive")
+            InlineKeyboardButton(text="💬 Поддержка", callback_data="show_support")
         ]
     ])
 
@@ -117,7 +117,6 @@ async def receive_user_id(message: types.Message, state: FSMContext):
     user_id_text = message.text.strip()
     await state.update_data(user_game_id=user_id_text)
     
-    # Добавленный текст с бонусами сразу после привязки ID
     bonus_text = (
         f"✅ ID <code>{user_id_text}</code> успешно привязан!\n\n"
         "🎁 Кстати, за пополнение дают вкусные бонусы — можешь отыграть их в любом слоте!\n\n"
@@ -152,7 +151,23 @@ async def process_mines_selection(callback: types.CallbackQuery):
     try:
         await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_mines_keyboard())
     except TelegramBadRequest:
-        pass  # Игнорируем ошибку, если пользователь нажал ту же самую кнопку повторно
+        pass  
+    await callback.answer()
+
+@router.callback_query(F.data == "show_support")
+async def show_support_handler(callback: types.CallbackQuery):
+    support_text = (
+        "💬 **Центр поддержки FastSignal**\n\n"
+        "Возникли вопросы по работе бота, привязке ID или выводу средств? "
+        "Свяжитесь с нашей службой поддержки, и мы решим любой вопрос!\n\n"
+        "👉 Напишите нашему администратору: @Dexterslive"
+    )
+    support_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✍️ Написать в поддержку", url="https://t.me/Dexterslive")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_menu")]
+    ])
+    
+    await callback.message.edit_text(support_text, parse_mode="Markdown", reply_markup=support_keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_menu")
