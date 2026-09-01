@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import random
 from aiogram import Bot, Dispatcher, Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -40,21 +41,18 @@ def get_mines_keyboard() -> InlineKeyboardMarkup:
     if row:
         buttons.append(row)
         
-    # Кнопка партнерки 1win
     buttons.append([
-        InlineKeyboardButton(text="💎 Играть на 1win", url="https://one-vv4866.com/?open=register&p=i390")
+        InlineKeyboardButton(text="💎 Играть на 1win", url="https://1win.link/your_partner_link")
     ])
     
-    # Нижний ряд: Назад и Поддержка
     buttons.append([
         InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu"),
         InlineKeyboardButton(text="💬 Поддержка", url="https://t.me/Dexterslive")
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# --- МАТЕМАТИКА И РАСЧЕТЫ ---
+# --- МАТЕМАТИКА И ВИЗУАЛ СИГНАЛОВ ---
 def calculate_multiplier(mines_count: int, steps_opened: int = 1) -> float:
-    """Рассчитывает коэффициент для игры Mines с учетом маржи платформы (~3%)"""
     total_cells = 25
     safe_cells = total_cells - mines_count
     
@@ -70,26 +68,42 @@ def calculate_multiplier(mines_count: int, steps_opened: int = 1) -> float:
     return round(max(1.01, raw_multiplier * house_edge), 2)
 
 def calculate_win_probability(mines_count: int) -> int:
-    """Рассчитывает процент успешного исхода (от ~96% до ровно 60%)"""
     max_allowed_prob = 96.0
     min_allowed_prob = 60.0
-    
     factor = (mines_count - 1) / (20 - 1)
     scaled_prob = max_allowed_prob - (max_allowed_prob - min_allowed_prob) * factor
-    
     return int(round(scaled_prob))
+
+def generate_mines_grid(mines_count: int) -> str:
+    """Генерирует визуальное игровое поле 5x5 со случайными безопасными ячейками (⭐) и закрытыми (❓)"""
+    total_cells = 25
+    safe_count = max(1, 5 - (mines_count // 4))
+    
+    cells = list(range(1, total_cells + 1))
+    safe_spots = set(random.sample(cells, safe_count))
+    
+    grid_str = ""
+    for r in range(5):
+        row_chars = []
+        for c in range(5):
+            cell_num = r * 5 + c + 1
+            if cell_num in safe_spots:
+                row_chars.append("⭐")
+            else:
+                row_chars.append("❓")
+        grid_str += " ".join(row_chars) + "\n"
+        
+    return grid_str
 
 # --- ОБРАБОТЧИКИ КОМАНД И КНОПОК ---
 @router.message(Command("start"))
 async def start_handler(message: types.Message, state: FSMContext):
     await state.clear()
-    
     text = (
         "🎮 **FastSignal | Аналитический терминал**\n\n"
         "⚡️ Синхронизируй ID с системой, лови точные сигналы раундов и забирай максимум профита в два клика!\n\n"
         "👉 Нажми кнопку ниже, чтобы начать процесс привязки ID."
     )
-    
     await message.answer(text, reply_markup=get_register_keyboard(), parse_mode="Markdown")
 
 @router.callback_query(F.data == "start_registration")
@@ -104,9 +118,7 @@ async def start_reg_callback(callback: types.CallbackQuery, state: FSMContext):
 @router.message(RegistrationStates.waiting_for_id)
 async def receive_user_id(message: types.Message, state: FSMContext):
     user_id_text = message.text.strip()
-    
     await state.update_data(user_game_id=user_id_text)
-    
     await message.answer(
         f"✅ ID <code>{user_id_text}</code> успешно привязан!\n\n"
         "💣 Выбери количество мин для анализа раунда:",
@@ -121,13 +133,16 @@ async def process_mines_selection(callback: types.CallbackQuery):
     
     current_mult = calculate_multiplier(mines_count, steps_opened=1)
     win_probability = calculate_win_probability(mines_count)
+    visual_grid = generate_mines_grid(mines_count)
     
     text = (
         f"⚙️ **Анализ параметров:**\n"
         f"💣 Количество мин: **{mines_count}**\n"
         f"🎯 Вероятность успеха: **{win_probability}%**\n"
         f"📊 Ожидаемый коэффициент (Шаг 1): **{current_mult}x**\n\n"
-        f"🔄 Сигнал сгенерирован. Выберите другое количество или перейдите к игре:"
+        f"📍 **Сигнал (безопасные лунки):**\n"
+        f"{visual_grid}\n"
+        f"🔄 Выберите другое количество или перейдите к игре:"
     )
     
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_mines_keyboard())
@@ -158,7 +173,6 @@ async def web_server():
 
 async def main():
     dp.include_router(router)
-    
     await asyncio.gather(
         web_server(),
         dp.start_polling(bot)
