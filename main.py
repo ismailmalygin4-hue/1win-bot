@@ -30,26 +30,22 @@ def get_register_keyboard() -> InlineKeyboardMarkup:
     ])
 
 def get_mines_keyboard() -> InlineKeyboardMarkup:
-    """Генерирует сетку кнопок выбора мин от 1 до 20, кнопку 1win, меню и поддержку"""
-    buttons = []
-    row = []
-    for i in range(1, 21):
-        row.append(InlineKeyboardButton(text=f"💣 {i}", callback_data=f"set_mines_{i}"))
-        if len(row) == 5:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-        
-    buttons.append([
-        InlineKeyboardButton(text="💎 Играть на 1win", url="https://one-vv4866.com/?open=register&p=i390")
+    """Генерирует сетку кнопок выбора мин (1, 3, 5, 7), кнопку 1win, меню и поддержку"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="💣 1", callback_data="set_mines_1"),
+            InlineKeyboardButton(text="💣 3", callback_data="set_mines_3"),
+            InlineKeyboardButton(text="💣 5", callback_data="set_mines_5"),
+            InlineKeyboardButton(text="💣 7", callback_data="set_mines_7"),
+        ],
+        [
+            InlineKeyboardButton(text="💎 Играть на 1win", url="https://one-vv4866.com/?open=register&p=i390")
+        ],
+        [
+            InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu"),
+            InlineKeyboardButton(text="💬 Поддержка", url="https://t.me/Dexterslive")
+        ]
     ])
-    
-    buttons.append([
-        InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu"),
-        InlineKeyboardButton(text="💬 Поддержка", url="https://t.me/Dexterslive")
-    ])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # --- МАТЕМАТИКА И ВИЗУАЛ СИГНАЛОВ ---
 def calculate_multiplier(mines_count: int, steps_opened: int = 1) -> float:
@@ -75,7 +71,7 @@ def calculate_win_probability(mines_count: int) -> int:
     return int(round(scaled_prob))
 
 def generate_mines_grid(mines_count: int) -> str:
-    """Генерирует визуальное игровое поле 5x5 со случайными безопасными ячейками (⭐) и закрытыми (❓)"""
+    """Генерирует визуальное игровое поле 5x5 со случайными безопасными ячейками (⭐) и закрытыми (⬛)"""
     total_cells = 25
     safe_count = max(1, 5 - (mines_count // 4))
     
@@ -90,7 +86,7 @@ def generate_mines_grid(mines_count: int) -> str:
             if cell_num in safe_spots:
                 row_chars.append("⭐")
             else:
-                row_chars.append("❓")
+                row_chars.append("⬛")
         grid_str += " ".join(row_chars) + "\n"
         
     return grid_str
