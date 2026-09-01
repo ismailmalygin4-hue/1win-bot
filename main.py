@@ -42,7 +42,7 @@ def get_mines_keyboard() -> InlineKeyboardMarkup:
         buttons.append(row)
         
     buttons.append([
-        InlineKeyboardButton(text="💎 Играть на 1win", url="https://1win.link/your_partner_link")
+        InlineKeyboardButton(text="💎 Играть на 1win", url="https://one-vv4866.com/?open=register&p=i390")
     ])
     
     buttons.append([
