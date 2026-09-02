@@ -25,7 +25,7 @@ class RegistrationStates(StatesGroup):
 def get_register_keyboard() -> InlineKeyboardMarkup:
     """Главная клавиатура при /start: Регистрация 1WIN, Прислать ID (обязательно) и Поддержка"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🌐 Зарегистрироваться на сайте 1WIN", url="https://one-vv4866.com/?open=register&p=i390")],
+        [InlineKeyboardButton(text="🌐 Зарегистрироваться на сайте 1WIN", url="https://one-vv8000.com/?open=register&p=i390")],
         [InlineKeyboardButton(text="🚀 Прислать ID (обязательно)", callback_data="start_registration")],
         [InlineKeyboardButton(text="💬 Поддержка", callback_data="show_support")]
     ])
@@ -40,7 +40,7 @@ def get_mines_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="💣 7", callback_data="set_mines_7"),
         ],
         [
-            InlineKeyboardButton(text="💎 Играть на 1win", url="https://one-vv4866.com/?open=register&p=i390")
+            InlineKeyboardButton(text="💎 Играть на 1win", url="https://one-vv8000.com/?open=register&p=i390")
         ],
         [
             InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu"),
