@@ -11,7 +11,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiohttp import web
 
 # Токен вашего бота
-TOKEN = os.getenv("BOT_TOKEN", "8818268231:AAGuHw1NkORyeUn7h6iseVRISTr_ydWgRJI")
+TOKEN = os.getenv("BOT_TOKEN", "8818268231:AAH6nwla5aNaNv17x4S4hhzOvQwa27lAq7s")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -23,15 +23,14 @@ class RegistrationStates(StatesGroup):
 
 # --- КЛАВИАТУРЫ ---
 def get_register_keyboard() -> InlineKeyboardMarkup:
-    """Главная клавиатура: Старт регистрации, Партнерка 1win и Поддержка"""
+    """Главная клавиатура при /start: только Привязать ID и Поддержка"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Привязать ID / Начать", callback_data="start_registration")],
-        [InlineKeyboardButton(text="💎 Играть / 1win", url="https://one-vv4866.com/?open=register&p=i390")],
         [InlineKeyboardButton(text="💬 Поддержка", callback_data="show_support")]
     ])
 
 def get_mines_keyboard() -> InlineKeyboardMarkup:
-    """Генерирует клавиатуру выбора мин (1, 3, 5, 7), кнопку 1win, меню и поддержку"""
+    """Клавиатура с минами, кнопкой 1win и поддержкой после привязки ID"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="💣 1", callback_data="set_mines_1"),
