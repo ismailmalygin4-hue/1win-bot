@@ -23,9 +23,10 @@ class RegistrationStates(StatesGroup):
 
 # --- КЛАВИАТУРЫ ---
 def get_register_keyboard() -> InlineKeyboardMarkup:
-    """Главная клавиатура при /start: только Привязать ID и Поддержка"""
+    """Главная клавиатура при /start: Регистрация 1WIN, Прислать ID (обязательно) и Поддержка"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Привязать ID / Начать", callback_data="start_registration")],
+        [InlineKeyboardButton(text="🌐 Зарегистрироваться на сайте 1WIN", url="https://one-vv4866.com/?open=register&p=i390")],
+        [InlineKeyboardButton(text="🚀 Прислать ID (обязательно)", callback_data="start_registration")],
         [InlineKeyboardButton(text="💬 Поддержка", callback_data="show_support")]
     ])
 
@@ -97,8 +98,8 @@ async def start_handler(message: types.Message, state: FSMContext):
     await state.clear()  # Сбрасываем любые зависшие состояния принудительно
     text = (
         "🎮 **FastSignal | Аналитический терминал**\n\n"
-        "⚡️ Синхронизируй ID с системой, лови точные сигналы раундов и забирай максимум профита в два клика!\n\n"
-        "👉 Нажми кнопку ниже, чтобы начать процесс привязки ID."
+        "⚡️ Сначала пройдите регистрацию на сайте 1WIN по кнопке ниже, затем отправьте свой ID для доступа к сигналам!\n\n"
+        "👉 Выберите нужное действие:"
     )
     await message.answer(text, reply_markup=get_register_keyboard(), parse_mode="Markdown")
 
@@ -106,7 +107,7 @@ async def start_handler(message: types.Message, state: FSMContext):
 async def start_reg_callback(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(RegistrationStates.waiting_for_id)
     await callback.message.edit_text(
-        "✍️ Отправь свой **ID** из профиля ответным сообщением:",
+        "✍️ Отправь свой **ID** из профиля 1WIN ответным сообщением:",
         parse_mode="Markdown"
     )
     await callback.answer()
