@@ -17,27 +17,26 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
 
-# Состояния FSM для регистрации/привязки ID
 class RegistrationStates(StatesGroup):
     waiting_for_id = State()
 
-# --- КЛАВИАТУРЫ ---
 def get_register_keyboard() -> InlineKeyboardMarkup:
-    """Главная клавиатура при /start: Регистрация 1WIN, Прислать ID (обязательно) и Поддержка"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🌐 Зарегистрироваться на сайте 1WIN", url="https://one-vv8000.com/?open=register&p=i390")],
         [InlineKeyboardButton(text="🚀 Прислать ID (обязательно)", callback_data="start_registration")],
         [InlineKeyboardButton(text="💬 Поддержка", callback_data="show_support")]
     ])
 
-def get_mines_keyboard() -> InlineKeyboardMarkup:
-    """Клавиатура с минами, кнопкой 1win и поддержкой после привязки ID"""
+def get_mines_keyboard(mines_count: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="💣 1", callback_data="set_mines_1"),
             InlineKeyboardButton(text="💣 3", callback_data="set_mines_3"),
             InlineKeyboardButton(text="💣 5", callback_data="set_mines_5"),
             InlineKeyboardButton(text="💣 7", callback_data="set_mines_7"),
+        ],
+        [
+            InlineKeyboardButton(text="🔄 Следующий шаг", callback_data=f"next_step_{mines_count}")
         ],
         [
             InlineKeyboardButton(text="💎 Играть на 1win", url="https://one-vv8000.com/?open=register&p=i390")
@@ -48,7 +47,6 @@ def get_mines_keyboard() -> InlineKeyboardMarkup:
         ]
     ])
 
-# --- МАТЕМАТИКА И ВИЗУАЛ СИГНАЛОВ ---
 def calculate_multiplier(mines_count: int, steps_opened: int = 1) -> float:
     total_cells = 25
     safe_cells = total_cells - mines_count
@@ -65,19 +63,16 @@ def calculate_multiplier(mines_count: int, steps_opened: int = 1) -> float:
     return round(max(1.01, raw_multiplier * house_edge), 2)
 
 def calculate_win_probability(mines_count: int) -> int:
-    max_allowed_prob = 96.0
-    min_allowed_prob = 60.0
-    factor = (mines_count - 1) / (7 - 1)
-    scaled_prob = max_allowed_prob - (max_allowed_prob - min_allowed_prob) * factor
-    return int(round(scaled_prob))
+    base = 95 - (mines_count * 1.5)
+    return int(round(base))
 
-def generate_mines_grid(mines_count: int) -> str:
-    """Генерирует визуальное игровое поле 5x5 со случайными безопасными ячейками (⭐) и закрытыми (⬛)"""
+def generate_smart_mines_grid(mines_count: int, step_num: int = 1) -> str:
     total_cells = 25
-    safe_count = max(1, 5 - (mines_count // 2))
+    stars_to_show = 1 if mines_count >= 5 else 2
     
     cells = list(range(1, total_cells + 1))
-    safe_spots = set(random.sample(cells, safe_count))
+    random.seed(os.urandom(4))
+    safe_spots = set(random.sample(cells, stars_to_show))
     
     grid_str = ""
     for r in range(5):
@@ -87,15 +82,14 @@ def generate_mines_grid(mines_count: int) -> str:
             if cell_num in safe_spots:
                 row_chars.append("⭐")
             else:
-                row_chars.append("⬛")
-        grid_str += " ".join(row_chars) + "\n"
+                row_chars.append("🟦")
+        grid_str += "".join(row_chars) + "\n"
         
     return grid_str
 
-# --- ОБРАБОТЧИКИ КОМАНД И КНОПОК ---
 @router.message(Command("start"))
 async def start_handler(message: types.Message, state: FSMContext):
-    await state.clear()  # Сбрасываем любые зависшие состояния принудительно
+    await state.clear()
     text = (
         "🎮 **FastSignal | Аналитический терминал**\n\n"
         "⚡️ Сначала пройдите регистрацию на сайте 1WIN по кнопке ниже, затем отправьте свой ID для доступа к сигналам!\n\n"
@@ -119,13 +113,12 @@ async def receive_user_id(message: types.Message, state: FSMContext):
     
     bonus_text = (
         f"✅ ID <code>{user_id_text}</code> успешно привязан!\n\n"
-        "🎁 Кстати, за пополнение дают вкусные бонусы — можешь отыграть их в любом слоте!\n\n"
-        "💣 Выбери количество мин для анализа раунда:"
+        "🎁 Данные синхронизированы с сервером. Выберите режим анализа (количество мин):"
     )
     
     await message.answer(
         bonus_text,
-        reply_markup=get_mines_keyboard(),
+        reply_markup=get_mines_keyboard(mines_count=3),
         parse_mode="HTML"
     )
     await state.clear()
@@ -136,38 +129,58 @@ async def process_mines_selection(callback: types.CallbackQuery):
     
     current_mult = calculate_multiplier(mines_count, steps_opened=1)
     win_probability = calculate_win_probability(mines_count)
-    visual_grid = generate_mines_grid(mines_count)
+    visual_grid = generate_smart_mines_grid(mines_count, step_num=1)
     
     text = (
-        f"⚙️ **Анализ параметров:**\n"
-        f"💣 Количество мин: **{mines_count}**\n"
-        f"🎯 Вероятность успеха: **{win_probability}%**\n"
-        f"📊 Ожидаемый коэффициент (Шаг 1): **{current_mult}x**\n\n"
-        f"📍 **Сигнал (безопасные лунки):**\n"
+        f"🎯 **Анализ раунда (Mines)**\n"
+        f"💣 Мин: **{mines_count}** | 📊 Шанс прохода: **{win_probability}%**\n"
+        f"📈 Коэффициент (Шаг 1): **x{current_mult}**\n\n"
         f"{visual_grid}\n"
-        f"🔄 Выберите другое количество или перейдите к игре:"
+        f"👇 Забирай безопасную лунку или жми следующий шаг:"
     )
     
     try:
-        await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_mines_keyboard())
+        await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_mines_keyboard(mines_count))
     except TelegramBadRequest:
         pass  
     await callback.answer()
 
+@router.callback_query(F.data.startswith("next_step_"))
+async def process_next_step(callback: types.CallbackQuery):
+    mines_count = int(callback.data.split("_")[-1])
+    
+    step_num = random.randint(2, 3)
+    current_mult = calculate_multiplier(mines_count, steps_opened=step_num)
+    win_probability = max(75, calculate_win_probability(mines_count) - (step_num * 3))
+    visual_grid = generate_smart_mines_grid(mines_count, step_num=step_num)
+    
+    text = (
+        f"🎯 **Анализ раунда (Mines)**\n"
+        f"💣 Мин: **{mines_count}** | 📊 Шанс прохода: **{win_probability}%**\n"
+        f"📈 Коэффициент (Шаг {step_num}): **x{current_mult}**\n\n"
+        f"{visual_grid}\n"
+        f"👇 Сигнал обновлен под следующий ход:"
+    )
+    
+    try:
+        await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=get_mines_keyboard(mines_count))
+    except TelegramBadRequest:
+        pass
+    await callback.answer("🔄 Новый шаг просчитан!")
+
 @router.callback_query(F.data == "show_support")
 async def show_support_handler(callback: types.CallbackQuery):
     support_text = (
-        "💬 **Центр поддержки FastSignal**\n\n"
+        "💬 <b>Центр поддержки FastSignal</b>\n\n"
         "Возникли вопросы по работе бота, привязке ID или выводу средств? "
         "Свяжитесь с нашей службой поддержки, и мы решим любой вопрос!\n\n"
-        "👉 Напишите нашему администратору: @Dexterslive"
+        "👉 Напишите нашему администратору: <a href='https://t.me/Dexterslive'>@Dexterslive</a>"
     )
     support_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✍️ Написать в поддержку", url="https://t.me/Dexterslive")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_menu")]
     ])
     
-    await callback.message.edit_text(support_text, parse_mode="Markdown", reply_markup=support_keyboard)
+    await callback.message.edit_text(support_text, parse_mode="HTML", reply_markup=support_keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_menu")
@@ -180,7 +193,6 @@ async def back_to_menu(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-# --- СЕРВЕР ДЛЯ ПОДДЕРЖАНИЯ РАБОТЫ НА RENDER (aiohttp) ---
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
