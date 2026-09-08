@@ -9,7 +9,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiohttp import web
 
 # Токен твоего бота (убедись, что здесь твой актуальный токен)
-TOKEN = os.getenv("BOT_TOKEN", "8818268231:AAH6nwla5aNaNv17x4S4hhzOvQwa27lAq7s")
+TOKEN = os.getenv("BOT_TOKEN", "8818268231:AAEP8QDZXr2-8uVAdVWbIuLDDPzG72ZORhY")
 
 # Ссылка на твое веб-приложение. 
 # Если запускаешь локально для теста, обычно используют ngrok. 
