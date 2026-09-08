@@ -14,7 +14,7 @@ TOKEN = os.getenv("BOT_TOKEN", "8818268231:AAEP8QDZXr2-8uVAdVWbIuLDDPzG72ZORhY")
 # Ссылка на твое веб-приложение. 
 # Если запускаешь локально для теста, обычно используют ngrok. 
 # На хостинге (Render, Railway) сюда подставится адрес твоего сайта.
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://1win-bot-1.onrender.com](https://1win-bot-1.onrender.com")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://1win-bot-1.onrender.com")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
