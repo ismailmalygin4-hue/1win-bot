@@ -9,7 +9,7 @@ from aiogram.filters import CommandStart
 logging.basicConfig(level=logging.INFO)
 
 # Получаем токен из переменных окружения Render
-TOKEN = os.getenv("BOT_TOKEN", "")
+TOKEN = os.getenv("BOT_TOKEN", "8818268231:AAF26_KJH8qlLeUgJ3uX4Jp71xQFMyKGe6s")
 PORT = int(os.getenv("PORT", 10000))
 
 # Ссылка на твое веб-приложение на Render
