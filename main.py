@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
@@ -15,7 +16,7 @@ PORT = int(os.getenv("PORT", 10000))
 # Ссылка на веб-приложение на Render
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://1win-bot-1.onrender.com")
 
-# Ссылка на 1WIN (замени на свою реферальную, если нужно)
+# Ссылка на 1WIN
 ONWIN_URL = "https://one-vv8000.com/?open=register&p=i390"
 
 bot = Bot(token=TOKEN)
@@ -192,9 +193,13 @@ async def main():
     await site.start()
     logging.info(f"Web server started on port {PORT}")
 
+    # Сбрасываем вебхуки и зависшие сессии
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    
+    # Небольшая пауза для полного завершения старых подключений
+    await asyncio.sleep(3)
+    
+    await dp.start_polling(bot, close_bot_session=True)
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
