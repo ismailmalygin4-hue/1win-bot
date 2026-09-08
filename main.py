@@ -1,99 +1,192 @@
-import asyncio
-import logging
 import os
-from aiogram import Bot, Dispatcher, Router, F, types
-from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+import logging
 from aiohttp import web
+from aiogram import Bot, Dispatcher, Router, F
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, FSInputFile
+from aiogram.filters import CommandStart
 
-# Токен твоего бота (убедись, что здесь твой актуальный токен)
-TOKEN = os.getenv("BOT_TOKEN", "8818268231:AAEP8QDZXr2-8uVAdVWbIuLDDPzG72ZORhY")
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
 
-# Ссылка на твое веб-приложение. 
-# Если запускаешь локально для теста, обычно используют ngrok. 
-# На хостинге (Render, Railway) сюда подставится адрес твоего сайта.
+# Получаем токен из переменных окружения Render
+TOKEN = os.getenv("BOT_TOKEN", "")
+PORT = int(os.getenv("PORT", 10000))
+
+# Ссылка на твое веб-приложение на Render
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://1win-bot-1.onrender.com")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
 
-class RegistrationStates(StatesGroup):
-    waiting_for_id = State()
+# HTML-страница игры Mines для Mini App
+HTML_CONTENT = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mines Signals</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background-color: #0f1923;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        h2 { color: #00ffcc; margin-bottom: 10px; }
+        .settings {
+            margin: 15px 0;
+            font-size: 16px;
+        }
+        select {
+            background: #1b2838;
+            color: #fff;
+            border: 1px solid #00ffcc;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            max-width: 320px;
+            margin: 20px auto;
+        }
+        .cell {
+            aspect-ratio: 1;
+            background: #1b2838;
+            border: 2px solid #2a475e;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: 0.3s;
+        }
+        .cell.active {
+            background: #00ffcc;
+            border-color: #fff;
+            box-shadow: 0 0 10px #00ffcc;
+        }
+        button.btn {
+            background: linear-gradient(135deg, #00ffcc, #00b386);
+            color: #0f1923;
+            border: none;
+            padding: 12px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            width: 100%;
+            max-width: 320px;
+        }
+        button.btn:active { transform: scale(0.98); }
+    </style>
+</head>
+<body>
+    <h2>MINES SIGNAL</h2>
+    
+    <div class="settings">
+        <label for="minesCount">Количество мин: </label>
+        <select id="minesCount">
+            <option value="1">1</option>
+            <option value="3" selected>3</option>
+            <option value="5">5</option>
+            <option value="7">7</option>
+        </select>
+    </div>
 
-def get_main_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Запустить Мини-Приложение (Сигналы)", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton(text="🌐 Зарегистрироваться на 1WIN", url="https://one-vv8000.com/?open=register&p=i390")],
-        [InlineKeyboardButton(text="✍️ Прислать ID", callback_data="start_registration")],
-        [InlineKeyboardButton(text="💬 Поддержка", callback_data="show_support")]
-    ])
+    <div class="grid" id="grid"></div>
 
-@router.message(Command("start"))
-async def start_handler(message: types.Message, state: FSMContext):
-    await state.clear()
-    text = (
-        "🎮 **FastSignal | Web App Terminal**\n\n"
-        "⚡️ Нажми на кнопку ниже, чтобы открыть интерактивное приложение с сигналами прямо в Telegram!"
+    <button class="btn" onclick="getSignal()">ВЫДАТЬ СИГНАЛ</button>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const gridElement = document.getElementById('grid');
+        const totalCells = 25;
+
+        // Создаем сетку 5x5
+        for (let i = 0; i < totalCells; i++) {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            gridElement.appendChild(cell);
+        }
+
+        function getSignal() {
+            const mines = parseInt(document.getElementById('minesCount').value);
+            const cells = document.querySelectorAll('.cell');
+            
+            // Сбрасываем старые активные квадратики
+            cells.forEach(c => c.classList.remove('active'));
+            cells.forEach(c => c.innerHTML = '');
+
+            // Определяем количество безопасных ярок для открытия (например, 25 - мин)
+            let safeCount = totalCells - mines;
+            // Покажем игроку случайных 5-7 безопасных точек со звездочками ⭐
+            let targetCount = Math.min(safeCount, 5); 
+            
+            let opened = [];
+            while(opened.length < targetCount) {
+                let randomIndex = Math.floor(Math.random() * totalCells);
+                if(!opened.includes(randomIndex)) {
+                    opened.push(randomIndex);
+                }
+            }
+
+            opened.forEach(index => {
+                cells[index].classList.add('active');
+                cells[index].innerHTML = '⭐';
+            });
+
+            if (tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('medium');
+            }
+        }
+    </script>
+</body>
+</html>
+"""
+
+# Обработчик веб-сервера для показа игры
+async def handle_web(request):
+    return web.Response(text=HTML_CONTENT, content_type='text/html')
+
+# Хэндлер команды /start в боте
+@router.message(CommandStart())
+async def cmd_start(message: Message):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💣 Открыть игру Mines", web_app=WebAppInfo(url=WEBAPP_URL))]
+        ]
     )
-    await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="Markdown")
-
-@router.callback_query(F.data == "start_registration")
-async def start_reg_callback(callback: types.CallbackQuery, state: FSMContext):
-    await state.set_state(RegistrationStates.waiting_for_id)
-    await callback.message.answer("✍️ Отправь свой **ID** из профиля 1WIN ответным сообщением:", parse_mode="Markdown")
-    await callback.answer()
-
-@router.message(RegistrationStates.waiting_for_id)
-async def receive_user_id(message: types.Message, state: FSMContext):
-    user_id_text = message.text.strip()
     await message.answer(
-        f"✅ ID <code>{user_id_text}</code> успешно привязан!\n\n"
-        "Теперь можешь запускать Mini App.",
-        reply_markup=get_main_keyboard(),
-        parse_mode="HTML"
+        "Привет! Нажми кнопку ниже, чтобы открыть мини-апп с сигналами Mines:",
+        reply_markup=keyboard
     )
-    await state.clear()
-
-@router.callback_query(F.data == "show_support")
-async def show_support_handler(callback: types.CallbackQuery):
-    support_text = "💬 Поддержка: пишите администратору <a href='https://t.me/Dexterslive'>@Dexterslive</a>"
-    await callback.message.answer(support_text, parse_mode="HTML")
-    await callback.answer()
-
-# --- HTTP СЕРВЕР ДЛЯ РАЗДАЧИ index.html ---
-async def handle_index(request):
-    filename = "index.html"
-    if os.path.exists(filename):
-        with open(filename, "r", encoding="utf-8") as f:
-            content = f.read()
-        return web.Response(text=content, content_type="text/html")
-    return web.Response(text="index.html not found in folder", status=404)
-
-async def handle_ping(request):
-    return web.Response(text="Web App Server is running!")
-
-async def web_server():
-    app = web.Application()
-    app.router.add_get("/", handle_index)
-    app.router.add_get("/ping", handle_ping)
-    
-    runner = web.AppRunner(app)
-    await runner.setup()
-    
-    port = int(os.environ.get("PORT", 8080))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
 
 async def main():
     dp.include_router(router)
-    await asyncio.gather(
-        web_server(),
-        dp.start_polling(bot)
-    )
+    
+    # Запускаем веб-сервер для Render
+    app = web.Application()
+    app.router.add_get('/', handle_web)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', PORT)
+    await site.start()
+    logging.info(f"Web server started on port {PORT}")
+
+    # Запускаем телеграм бота
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    import asyncio
     asyncio.run(main())
