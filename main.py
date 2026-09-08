@@ -1,29 +1,26 @@
 import os
 import logging
-import asyncio
 from aiohttp import web
-from aiogram import Bot, Dispatcher, Router, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram import Bot, Dispatcher, Router
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 from aiogram.filters import CommandStart
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Твой актуальный токен
 TOKEN = "8818268231:AAEi1MEo0v_En13hmHcDApF-9unmT1S3jJ8"
 PORT = int(os.getenv("PORT", 10000))
 
-# Ссылка на веб-приложение на Render
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://1win-bot-1.onrender.com")
+# Твой адрес на Render (без слеша на конце)
+WEBAPP_URL = "https://1win-bot-1.onrender.com"
+WEBHOOK_PATH = f"/bot/{TOKEN}"
+WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 
-# Ссылка на 1WIN
 ONWIN_URL = "https://one-vv8000.com/?open=register&p=i390"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
 
-# HTML-страница игры Mines для Mini App
 HTML_CONTENT = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -167,6 +164,12 @@ HTML_CONTENT = f"""<!DOCTYPE html>
 async def handle_web(request):
     return web.Response(text=HTML_CONTENT, content_type='text/html')
 
+async def handle_webhook(request):
+    data = await request.json()
+    update = Update.model_validate(data, context={"bot": bot})
+    await dp.feed_update(bot, update)
+    return web.Response()
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     keyboard = InlineKeyboardMarkup(
@@ -180,26 +183,29 @@ async def cmd_start(message: Message):
         reply_markup=keyboard
     )
 
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
+    logging.info(f"Webhook set to {WEBHOOK_URL}")
+
 async def main():
     dp.include_router(router)
     
     app = web.Application()
     app.router.add_get('/', handle_web)
     app.router.add_get('/index.html', handle_web)
+    app.router.add_post(WEBHOOK_PATH, handle_webhook)
+    
+    app.on_startup.append(on_startup)
     
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
     logging.info(f"Web server started on port {PORT}")
-
-    # Сбрасываем вебхуки и зависшие сессии
-    await bot.delete_webhook(drop_pending_updates=True)
     
-    # Небольшая пауза для полного завершения старых подключений
-    await asyncio.sleep(3)
-    
-    await dp.start_polling(bot, close_bot_session=True)
+    # Висим вечно, чтобы сервер не закрывался
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
