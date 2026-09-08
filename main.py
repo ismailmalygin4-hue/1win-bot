@@ -9,7 +9,7 @@ from aiogram.filters import CommandStart
 logging.basicConfig(level=logging.INFO)
 
 # Твой актуальный токен
-TOKEN = "8818268231:AAFc4GG0LiMEyzityYYIr6pQ-j7JxGH0SUFA"
+TOKEN = "8818268231:AAFc4GG0LImEyzitYYIr6pQ-j7JxGH05UFA"
 PORT = int(os.getenv("PORT", 10000))
 
 # Ссылка на веб-приложение на Render
