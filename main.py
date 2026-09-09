@@ -1,9 +1,11 @@
 import os
 import logging
 from aiohttp import web
-from aiogram import Bot, Dispatcher, Router
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
-from aiogram.filters import CommandStart
+from aiogram import Bot, Dispatcher, Router, F
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update, ReplyKeyboardRemove
+from aiogram.filters import CommandStart, StateFilter
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
 
 logging.basicConfig(level=logging.INFO)
 
@@ -15,8 +17,11 @@ WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 ONWIN_URL = "https://one-vv8000.com/?open=register&p=i390"
 
 bot = Bot(token=TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(storage=MemoryStorage())
 router = Router()
+
+class Form(StatesGroup):
+    waiting_for_id = State()
 
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="ru">
@@ -67,29 +72,19 @@ HTML_CONTENT = """<!DOCTYPE html>
             gridElement.appendChild(cell);
         }
 
-        // Математический расчет зон безопасности сетки 5х5
         function calculateOptimalCells(mines, targetCount) {
             let weights = new Array(totalCells).fill(1.0);
-            
-            // Математический анализ кластеров и коэффициентов рисков
             for (let i = 0; i < totalCells; i++) {
                 let row = Math.floor(i / 5);
                 let col = i % 5;
-                // Снижаем математический вес углов и центральных точек при высоких рисках (минах)
                 let distanceCenter = Math.abs(2 - row) + Math.abs(2 - col);
                 weights[i] += (2.5 - distanceCenter * 0.3) * (1 / (mines * 0.5 + 1));
-                // Добавляем псевдослучайный математический шум на базе синусоид для вариативности анализа
                 weights[i] *= (0.8 + Math.abs(Math.sin(i * 12.9898 + mines) * 0.4));
             }
-
-            // Выбираем лучшие ячейки с учетом весов
             let pool = Array.from({length: totalCells}, (_, index) => index);
             pool.sort((a, b) => weights[b] - weights[a]);
-
-            // Берем с запасом из топ-анализа и перемешиваем для динамики
             let topCandidates = pool.slice(0, Math.max(targetCount + 4, 10));
             topCandidates.sort(() => Math.random() - 0.5);
-            
             return topCandidates.slice(0, targetCount);
         }
 
@@ -106,7 +101,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                 c.innerHTML = '';
             });
 
-            // Заданное количество звезд по уровням
             let targetCount = 3;
             if (mines === 1) {
                 targetCount = Math.floor(Math.random() * (7 - 3 + 1)) + 3; // 3 - 7
@@ -120,7 +114,6 @@ HTML_CONTENT = """<!DOCTYPE html>
 
             let opened = calculateOptimalCells(mines, targetCount);
 
-            // Плавное появление звезд по очереди
             let index = 0;
             function revealNext() {
                 if (index < opened.length) {
@@ -129,7 +122,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                     cells[cellIdx].innerHTML = '⭐';
                     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
                     index++;
-                    setTimeout(revealNext, 200); // Задержка 200мс между появлением звезд
+                    setTimeout(revealNext, 200);
                 } else {
                     isGenerating = false;
                     btn.disabled = false;
@@ -155,7 +148,9 @@ async def handle_webhook(request):
     return web.Response(text="OK")
 
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext = None):
+    if state:
+        await state.clear()
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🎯 Зарегистрироваться на 1WIN (обязательно)", url=ONWIN_URL)],
@@ -168,17 +163,26 @@ async def cmd_start(message: Message):
     )
 
 @router.callback_query(lambda c: c.data == "link_id")
-async def process_link_id(callback: CallbackQuery):
+async def process_link_id(callback: CallbackQuery, state):
+    await state.set_state(Form.waiting_for_id)
+    await callback.message.answer("Отправьте свой ID ответным сообщением:")
+    await callback.answer()
+
+@router.message(Form.waiting_for_id)
+async def receive_user_id(message: Message, state):
+    user_id_text = message.text.strip()
+    await state.clear()
+    
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⭐ Открыть Сигналы 1win", web_app=WebAppInfo(url=WEBAPP_URL))]
         ]
     )
-    await callback.message.edit_text(
-        "ID успешно принят! ✅ Теперь ты можешь запустить мини-апп с сигналами:",
-        reply_markup=keyboard
+    await message.answer(
+        f"ID `{user_id_text}` успешно принят! ✅ Теперь ты можешь запустить мини-апп с сигналами:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
-    await callback.answer()
 
 @router.message()
 async def echo_all(message: Message):
