@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = "8818268231:AAHMhMwPrBDP2JGTsajUrHqXBgXPR0e4HhU"
 PORT = int(os.getenv("PORT", 10000))
-WEBAPP_URL = "https://1win-bot-1.onrender.com"
+WEBAPP_URL = "https://onewin-bot-1.onrender.com"
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 ONWIN_URL = "https://one-vv8000.com/?open=register&p=i390"
