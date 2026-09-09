@@ -1,9 +1,11 @@
 import os
 import logging
+import asyncio
+import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update, ReplyKeyboardRemove
-from aiogram.filters import CommandStart, StateFilter
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+from aiogram.filters import CommandStart
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -103,13 +105,13 @@ HTML_CONTENT = """<!DOCTYPE html>
 
             let targetCount = 3;
             if (mines === 1) {
-                targetCount = Math.floor(Math.random() * (7 - 3 + 1)) + 3; // 3 - 7
+                targetCount = Math.floor(Math.random() * (7 - 3 + 1)) + 3;
             } else if (mines === 3) {
-                targetCount = Math.floor(Math.random() * (5 - 3 + 1)) + 3; // 3 - 5
+                targetCount = Math.floor(Math.random() * (5 - 3 + 1)) + 3;
             } else if (mines === 5) {
-                targetCount = Math.floor(Math.random() * (4 - 2 + 1)) + 2; // 2 - 4
+                targetCount = Math.floor(Math.random() * (4 - 2 + 1)) + 2;
             } else if (mines === 7) {
-                targetCount = Math.floor(Math.random() * (3 - 1 + 1)) + 1; // 1 - 3
+                targetCount = Math.floor(Math.random() * (3 - 1 + 1)) + 1;
             }
 
             let opened = calculateOptimalCells(mines, targetCount);
@@ -148,7 +150,7 @@ async def handle_webhook(request):
     return web.Response(text="OK")
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext = None):
+async def cmd_start(message: Message, state = None):
     if state:
         await state.clear()
     keyboard = InlineKeyboardMarkup(
@@ -188,6 +190,18 @@ async def receive_user_id(message: Message, state):
 async def echo_all(message: Message):
     await message.answer("Пожалуйста, используй команду /start для перезапуска меню.")
 
+# Встроенный пингер для предотвращения засыпания сервера
+async def keep_alive():
+    await asyncio.sleep(15)
+    async with aiohttp.ClientSession() as session:
+        while True:
+            try:
+                async with session.get(WEBAPP_URL) as response:
+                    logging.info(f"Keep-alive ping status: {response.status}")
+            except Exception as e:
+                logging.error(f"Keep-alive ping error: {e}")
+            await asyncio.sleep(240) # Каждые 4 минуты
+
 async def main():
     dp.include_router(router)
     
@@ -204,9 +218,10 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
     
-    import asyncio
+    # Запуск фонового пингера
+    asyncio.create_task(keep_alive())
+    
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
