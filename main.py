@@ -2,15 +2,16 @@ import os
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 from aiogram.filters import CommandStart
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 logging.basicConfig(level=logging.INFO)
 
 TOKEN = "8818268231:AAEi1MEo0v_En13hmHcDApF-9unmT1S3jJ8"
 PORT = int(os.getenv("PORT", 10000))
 WEBAPP_URL = "https://1win-bot-1.onrender.com"
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 ONWIN_URL = "https://one-vv8000.com/?open=register&p=i390"
 
 bot = Bot(token=TOKEN)
@@ -88,6 +89,15 @@ HTML_CONTENT = """<!DOCTYPE html>
 async def handle_web(request):
     return web.Response(text=HTML_CONTENT, content_type='text/html')
 
+async def handle_webhook(request):
+    try:
+        data = await request.json()
+        update = Update.model_validate(data, context={"bot": bot})
+        await dp.feed_update(bot, update)
+    except Exception as e:
+        logging.error(f"Error handling update: {e}")
+    return web.Response(text="OK")
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     keyboard = InlineKeyboardMarkup(
@@ -105,27 +115,28 @@ async def cmd_start(message: Message):
 async def echo_all(message: Message):
     await message.answer("Бот успешно работает! ✅ Введи команду /start, чтобы открыть меню.")
 
-async def on_startup(bot: Bot):
-    await bot.set_webhook(f"{WEBAPP_URL}/webhook", drop_pending_updates=True)
-    logging.info("Webhook successfully set!")
-
-def main():
+async def main():
     dp.include_router(router)
-    dp.startup.register(on_startup)
     
     app = web.Application()
-    # Добавляем обработку и корня, и index.html
     app.router.add_get('/', handle_web)
     app.router.add_get('/index.html', handle_web)
+    app.router.add_post(WEBHOOK_PATH, handle_webhook)
     
-    webhook_requests_handler = SimpleRequestHandler(
-        dispatcher=dp,
-        bot=bot,
-    )
-    webhook_requests_handler.register(app, path="/webhook")
-    setup_application(app, dp, bot=bot)
+    # Устанавливаем вебхук при старте сервера
+    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
+    logging.info(f"Webhook set to {WEBHOOK_URL}")
     
-    web.run_app(app, host='0.0.0.0', port=PORT)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', PORT)
+    await site.start()
+    logging.info(f"Web server started on port {PORT}")
+    
+    # Висим вечно
+    import asyncio
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
