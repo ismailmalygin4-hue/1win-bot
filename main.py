@@ -2,7 +2,7 @@ import os
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher, Router
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
 from aiogram.filters import CommandStart
 
 logging.basicConfig(level=logging.INFO)
@@ -31,8 +31,8 @@ HTML_CONTENT = """<!DOCTYPE html>
         .settings { margin: 15px 0; font-size: 16px; }
         select { background: #1b2838; color: #fff; border: 1px solid #00ffcc; padding: 5px 10px; border-radius: 5px; font-size: 16px; }
         .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-width: 320px; margin: 20px auto; }
-        .cell { aspect-ratio: 1; background: #1b2838; border: 2px solid #2a475e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; transition: 0.3s; }
-        .cell.active { background: #00ffcc; border-color: #fff; box-shadow: 0 0 10px #00ffcc; }
+        .cell { aspect-ratio: 1; background: #1b2838; border: 2px solid #2a475e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; transform: scale(1); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .cell.active { background: #00ffcc; border-color: #fff; box-shadow: 0 0 15px #00ffcc; transform: scale(1.08); }
         button.btn { background: linear-gradient(135deg, #00ffcc, #00b386); color: #0f1923; border: none; padding: 12px 25px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; width: 100%; max-width: 320px; }
         button.btn-win { background: linear-gradient(135deg, #ff9900, #ff5500); color: #ffffff; margin-top: 10px; text-decoration: none; }
         button.btn:active { transform: scale(0.98); }
@@ -50,8 +50,8 @@ HTML_CONTENT = """<!DOCTYPE html>
         </select>
     </div>
     <div class="grid" id="grid"></div>
-    <button class="btn" onclick="getSignal()">ВЫДАТЬ СИГНАЛ</button>
-    <a href="https://one-vv8000.com/" target="_blank" style="text-decoration: none;">
+    <button class="btn" id="genBtn" onclick="getSignal()">ВЫДАТЬ СИГНАЛ</button>
+    <a href="https://one-vv8000.com/?open=register&p=i390" target="_blank" style="text-decoration: none;">
         <button class="btn btn-win">ПЕРЕЙТИ НА 1WIN</button>
     </a>
     <script>
@@ -59,28 +59,84 @@ HTML_CONTENT = """<!DOCTYPE html>
         tg.expand();
         const gridElement = document.getElementById('grid');
         const totalCells = 25;
+        let isGenerating = false;
+
         for (let i = 0; i < totalCells; i++) {
             const cell = document.createElement('div');
             cell.classList.add('cell');
             gridElement.appendChild(cell);
         }
+
+        // Математический расчет зон безопасности сетки 5х5
+        function calculateOptimalCells(mines, targetCount) {
+            let weights = new Array(totalCells).fill(1.0);
+            
+            // Математический анализ кластеров и коэффициентов рисков
+            for (let i = 0; i < totalCells; i++) {
+                let row = Math.floor(i / 5);
+                let col = i % 5;
+                // Снижаем математический вес углов и центральных точек при высоких рисках (минах)
+                let distanceCenter = Math.abs(2 - row) + Math.abs(2 - col);
+                weights[i] += (2.5 - distanceCenter * 0.3) * (1 / (mines * 0.5 + 1));
+                // Добавляем псевдослучайный математический шум на базе синусоид для вариативности анализа
+                weights[i] *= (0.8 + Math.abs(Math.sin(i * 12.9898 + mines) * 0.4));
+            }
+
+            // Выбираем лучшие ячейки с учетом весов
+            let pool = Array.from({length: totalCells}, (_, index) => index);
+            pool.sort((a, b) => weights[b] - weights[a]);
+
+            // Берем с запасом из топ-анализа и перемешиваем для динамики
+            let topCandidates = pool.slice(0, Math.max(targetCount + 4, 10));
+            topCandidates.sort(() => Math.random() - 0.5);
+            
+            return topCandidates.slice(0, targetCount);
+        }
+
         function getSignal() {
+            if (isGenerating) return;
+            isGenerating = true;
+            const btn = document.getElementById('genBtn');
+            btn.disabled = true;
+
             const mines = parseInt(document.getElementById('minesCount').value);
             const cells = document.querySelectorAll('.cell');
-            cells.forEach(c => c.classList.remove('active'));
-            cells.forEach(c => c.innerHTML = '');
-            let safeCount = totalCells - mines;
-            let targetCount = Math.min(safeCount, 5); 
-            let opened = [];
-            while(opened.length < targetCount) {
-                let randomIndex = Math.floor(Math.random() * totalCells);
-                if(!opened.includes(randomIndex)) opened.push(randomIndex);
-            }
-            opened.forEach(index => {
-                cells[index].classList.add('active');
-                cells[index].innerHTML = '⭐';
+            cells.forEach(c => {
+                c.classList.remove('active');
+                c.innerHTML = '';
             });
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+            // Заданное количество звезд по уровням
+            let targetCount = 3;
+            if (mines === 1) {
+                targetCount = Math.floor(Math.random() * (7 - 3 + 1)) + 3; // 3 - 7
+            } else if (mines === 3) {
+                targetCount = Math.floor(Math.random() * (5 - 3 + 1)) + 3; // 3 - 5
+            } else if (mines === 5) {
+                targetCount = Math.floor(Math.random() * (4 - 2 + 1)) + 2; // 2 - 4
+            } else if (mines === 7) {
+                targetCount = Math.floor(Math.random() * (3 - 1 + 1)) + 1; // 1 - 3
+            }
+
+            let opened = calculateOptimalCells(mines, targetCount);
+
+            // Плавное появление звезд по очереди
+            let index = 0;
+            function revealNext() {
+                if (index < opened.length) {
+                    let cellIdx = opened[index];
+                    cells[cellIdx].classList.add('active');
+                    cells[cellIdx].innerHTML = '⭐';
+                    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+                    index++;
+                    setTimeout(revealNext, 200); // Задержка 200мс между появлением звезд
+                } else {
+                    isGenerating = false;
+                    btn.disabled = false;
+                    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                }
+            }
+            revealNext();
         }
     </script>
 </body>
@@ -102,18 +158,31 @@ async def handle_webhook(request):
 async def cmd_start(message: Message):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💣 Открыть игру Mines", web_app=WebAppInfo(url=WEBAPP_URL))],
-            [InlineKeyboardButton(text="🎯 Зарегистрироваться на 1WIN", url=ONWIN_URL)]
+            [InlineKeyboardButton(text="🎯 Зарегистрироваться на 1WIN (обязательно)", url=ONWIN_URL)],
+            [InlineKeyboardButton(text="🆔 Привязать ID", callback_data="link_id")]
         ]
     )
     await message.answer(
-        "Привет! Нажми кнопку ниже, чтобы запустить мини-апп с сигналами или перейти на 1WIN:",
+        "Привет! Для доступа к сигналам пройди регистрацию и привяжи свой игровой ID:",
         reply_markup=keyboard
     )
 
+@router.callback_query(lambda c: c.data == "link_id")
+async def process_link_id(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⭐ Открыть Сигналы 1win", web_app=WebAppInfo(url=WEBAPP_URL))]
+        ]
+    )
+    await callback.message.edit_text(
+        "ID успешно принят! ✅ Теперь ты можешь запустить мини-апп с сигналами:",
+        reply_markup=keyboard
+    )
+    await callback.answer()
+
 @router.message()
 async def echo_all(message: Message):
-    await message.answer("Бот успешно работает! ✅ Введи команду /start, чтобы открыть меню.")
+    await message.answer("Пожалуйста, используй команду /start для перезапуска меню.")
 
 async def main():
     dp.include_router(router)
@@ -123,7 +192,6 @@ async def main():
     app.router.add_get('/index.html', handle_web)
     app.router.add_post(WEBHOOK_PATH, handle_webhook)
     
-    # Устанавливаем вебхук при старте сервера
     await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
     logging.info(f"Webhook set to {WEBHOOK_URL}")
     
@@ -131,9 +199,7 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
-    logging.info(f"Web server started on port {PORT}")
     
-    # Висим вечно
     import asyncio
     await asyncio.Event().wait()
 
