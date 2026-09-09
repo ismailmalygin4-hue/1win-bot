@@ -7,7 +7,7 @@ from aiogram.filters import CommandStart
 
 logging.basicConfig(level=logging.INFO)
 
-TOKEN = "8818268231:AAEi1MEo0v_En13hmHcDApF-9unmT1S3jJ8"
+TOKEN = "8818268231:AAHMhMwPrBDP2JGTsajUrHqXBgXPR0e4HhU"
 PORT = int(os.getenv("PORT", 10000))
 WEBAPP_URL = "https://1win-bot-1.onrender.com"
 WEBHOOK_PATH = "/webhook"
