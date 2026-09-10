@@ -41,7 +41,6 @@ HTML_CONTENT = """<!DOCTYPE html>
         .cell { aspect-ratio: 1; background: #1b2838; border: 2px solid #2a475e; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; transform: scale(1); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .cell.active { background: #00ffcc; border-color: #fff; box-shadow: 0 0 15px #00ffcc; transform: scale(1.08); }
         button.btn { background: linear-gradient(135deg, #00ffcc, #00b386); color: #0f1923; border: none; padding: 12px 25px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; width: 100%; max-width: 320px; }
-        button.btn-win { background: linear-gradient(135deg, #ff9900, #ff5500); color: #ffffff; margin-top: 10px; text-decoration: none; }
         button.btn:active { transform: scale(0.98); }
     </style>
 </head>
@@ -58,9 +57,6 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
     <div class="grid" id="grid"></div>
     <button class="btn" id="genBtn" onclick="getSignal()">ВЫДАТЬ СИГНАЛ</button>
-    <a href="https://one-vv8000.com/?open=register&p=i390" target="_blank" style="text-decoration: none;">
-        <button class="btn btn-win">ПЕРЕЙТИ НА 1WIN</button>
-    </a>
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
@@ -190,7 +186,6 @@ async def receive_user_id(message: Message, state):
 async def echo_all(message: Message):
     await message.answer("Пожалуйста, используй команду /start для перезапуска меню.")
 
-# Встроенный пингер для предотвращения засыпания сервера
 async def keep_alive():
     await asyncio.sleep(15)
     async with aiohttp.ClientSession() as session:
@@ -200,7 +195,7 @@ async def keep_alive():
                     logging.info(f"Keep-alive ping status: {response.status}")
             except Exception as e:
                 logging.error(f"Keep-alive ping error: {e}")
-            await asyncio.sleep(240) # Каждые 4 минуты
+            await asyncio.sleep(240)
 
 async def main():
     dp.include_router(router)
@@ -218,7 +213,6 @@ async def main():
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
     
-    # Запуск фонового пингера
     asyncio.create_task(keep_alive())
     
     await asyncio.Event().wait()
