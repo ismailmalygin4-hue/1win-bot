@@ -16,7 +16,7 @@ PORT = int(os.getenv("PORT", 10000))
 WEBAPP_URL = "https://onewin-bot-1.onrender.com"
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
-ONWIN_URL = "https://one-vv8000.com/?open=register&p=i390"
+ONWIN_URL = "https://one-vv8631.com/?open=register&p=i390"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
