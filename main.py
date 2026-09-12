@@ -17,15 +17,15 @@ WEBAPP_URL = "https://onewin-bot-1.onrender.com"
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 ONWIN_URL = "https://one-vv4504.com/?open=register&p=i390"
+MANAGER_URL = "https://t.me/Dexterslive"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 router = Router()
 
 # Базы данных в памяти
-# users_db: user_id -> {"invited": [], "deposits_sum": 0.0, "balance_to_withdraw": 0.0, "referrer": None, "is_blocked": False}
+# users_db: user_id -> {"invited": [], "deposits_sum": 0.0, "earned_percent_sum": 0.0, "balance_to_withdraw": 0.0, "referrer": None, "is_blocked": False}
 users_db = {}
-# Черный список для заблокированных за накрутку
 blocked_users = set()
 
 class Form(StatesGroup):
@@ -151,17 +151,30 @@ async def handle_webhook(request):
         logging.error(f"Error handling update: {e}")
     return web.Response(text="OK")
 
+# Функция для симуляции или начисления депозита с учетом строго 20%
+def add_deposit_for_user(user_id, deposit_amount):
+    if user_id not in users_db:
+        return
+    # Увеличиваем общую сумму депозитов приглашенного друга
+    users_db[user_id]["deposits_sum"] += deposit_amount
+    
+    # Проверяем, есть ли реферер (кто пригласил)
+    referrer_id = users_db[user_id]["referrer"]
+    if referrer_id and referrer_id in users_db and not users_db[referrer_id]["is_blocked"]:
+        # Считаем строго 20% от суммы депозита друга
+        earned_bonus = deposit_amount * 0.20
+        users_db[referrer_id]["earned_percent_sum"] += earned_bonus
+        users_db[referrer_id]["balance_to_withdraw"] += earned_bonus
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state = None):
     user = message.from_user
     user_id = user.id
     
-    # Проверка на блокировку за накрутку
     if user_id in blocked_users or (user_id in users_db and users_db[user_id].get("is_blocked")):
         await message.answer("❌ Ваш аккаунт заблокирован за попытку накрутки рефералов или использования ботов.")
         return
 
-    # Анализ накрутки: проверка, является ли пользователь ботом по спецификации Telegram
     if user.is_bot:
         blocked_users.add(user_id)
         if user_id in users_db:
@@ -177,17 +190,16 @@ async def cmd_start(message: Message, state = None):
         users_db[user_id] = {
             "invited": [],
             "deposits_sum": 0.0,
+            "earned_percent_sum": 0.0,
             "balance_to_withdraw": 0.0,
             "referrer": None,
             "is_blocked": False
         }
         
-        # Обработка реферальной ссылки с защитой от самоприглашения
         if len(args) > 1:
             try:
                 referrer_id = int(args[1])
                 if referrer_id != user_id and referrer_id in users_db and not users_db[referrer_id]["is_blocked"]:
-                    # Дополнительная проверка: если у реферера слишком много заходов за секунду, помечаем подозрительным
                     users_db[user_id]["referrer"] = referrer_id
                     if user_id not in users_db[referrer_id]["invited"]:
                         users_db[referrer_id]["invited"].append(user_id)
@@ -218,6 +230,7 @@ async def process_ref_system(callback: CallbackQuery):
         users_db[user_id] = {
             "invited": [],
             "deposits_sum": 0.0,
+            "earned_percent_sum": 0.0,
             "balance_to_withdraw": 0.0,
             "referrer": None,
             "is_blocked": False
@@ -225,11 +238,11 @@ async def process_ref_system(callback: CallbackQuery):
         
     user_data = users_db[user_id]
     
-    # Фильтруем приглашенных, исключая тех, кто попал в бан (накрутчики)
     valid_invited = [uid for uid in user_data["invited"] if uid not in blocked_users and not users_db.get(uid, {}).get("is_blocked", False)]
     invited_count = len(valid_invited)
     
     deposits_sum = user_data["deposits_sum"]
+    earned_percent_sum = user_data["earned_percent_sum"]
     balance_to_withdraw = user_data["balance_to_withdraw"]
     
     bot_info = await bot.get_me()
@@ -237,20 +250,37 @@ async def process_ref_system(callback: CallbackQuery):
     
     text = (
         f"📊 **Ваша реферальная статистика:**\n\n"
-        f"• Количество приглашенных (живые люди): {invited_count}\n"
+        f"• Количество приглашенных: {invited_count}\n"
         f"• Количество депозитов: {deposits_sum:.2f} руб.\n"
+        f"• Сумма ваших полученных процентов с депозитов: {earned_percent_sum:.2f} руб.\n"
         f"• Сумма к выводу: {balance_to_withdraw:.2f} руб.\n\n"
-        f"🛡 **Антифрод-система активна:** накрутка ботов автоматически вычисляется и блокируется.\n\n"
-        f"📉 Вы будете получать 20% от суммы выполненных депозитов друга.\n\n"
+        f"📉 Вы будете получать строго 20% от суммы выполненных депозитов друга.\n\n"
         f"🔗 Ваша индивидуальная ссылка:\n`{ref_link}`"
     )
     
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="💸 Вывод", callback_data="withdraw_menu")],
             [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
         ]
     )
     
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data == "withdraw_menu")
+async def process_withdraw(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👨‍💻 Написать менеджеру", url=MANAGER_URL)],
+            [InlineKeyboardButton(text="◀️ Назад", callback_data="ref_system")]
+        ]
+    )
+    text = (
+        "💳 **Вывод средств**\n\n"
+        "Для того чтобы вывести средства, вам необходимо написать менеджеру.\n\n"
+        "Свяжитесь с ним по ссылке ниже:"
+    )
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
