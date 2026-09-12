@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import asyncio
 import aiohttp
@@ -18,18 +19,40 @@ WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBAPP_URL}{WEBHOOK_PATH}"
 ONWIN_URL = "https://one-vv4504.com/?open=register&p=i390"
 MANAGER_URL = "https://t.me/Dexterslive"
+DB_FILE = "database.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 router = Router()
 
-# Базы данных в памяти
-# users_db: user_id -> {"invited": [], "deposits_sum": 0.0, "earned_percent_sum": 0.0, "balance_to_withdraw": 0.0, "referrer": None, "is_blocked": False}
-users_db = {}
-blocked_users = set()
-
 class Form(StatesGroup):
     waiting_for_id = State()
+
+# Функции постоянного сохранения данных (чтобы ничего не сбрасывалось)
+def load_db():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Конвертируем ключи словарей обратно в int (так как json сохраняет ключи как строки)
+                return {int(k): v for k, v in data.get("users", {}).items()}, set(data.get("blocked", []))
+        except Exception as e:
+            logging.error(f"Error loading DB: {e}")
+    return {}, set()
+
+def save_db():
+    try:
+        data = {
+            "users": users_db,
+            "blocked": list(blocked_users)
+        }
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logging.error(f"Error saving DB: {e}")
+
+# Инициализация баз данных с загрузкой диска
+users_db, blocked_users = load_db()
 
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="ru">
@@ -151,20 +174,18 @@ async def handle_webhook(request):
         logging.error(f"Error handling update: {e}")
     return web.Response(text="OK")
 
-# Функция для симуляции или начисления депозита с учетом строго 20%
+# Функция начисления депозита с сохранением в файл
 def add_deposit_for_user(user_id, deposit_amount):
     if user_id not in users_db:
         return
-    # Увеличиваем общую сумму депозитов приглашенного друга
     users_db[user_id]["deposits_sum"] += deposit_amount
     
-    # Проверяем, есть ли реферер (кто пригласил)
     referrer_id = users_db[user_id]["referrer"]
     if referrer_id and referrer_id in users_db and not users_db[referrer_id]["is_blocked"]:
-        # Считаем строго 20% от суммы депозита друга
-        earned_bonus = deposit_amount * 0.20
+        earned_bonus = deposit_amount * 0.20  # Строго 20%
         users_db[referrer_id]["earned_percent_sum"] += earned_bonus
         users_db[referrer_id]["balance_to_withdraw"] += earned_bonus
+    save_db()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state = None):
@@ -179,6 +200,7 @@ async def cmd_start(message: Message, state = None):
         blocked_users.add(user_id)
         if user_id in users_db:
             users_db[user_id]["is_blocked"] = True
+        save_db()
         return
 
     if state:
@@ -205,6 +227,7 @@ async def cmd_start(message: Message, state = None):
                         users_db[referrer_id]["invited"].append(user_id)
             except ValueError:
                 pass
+        save_db()
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -235,6 +258,7 @@ async def process_ref_system(callback: CallbackQuery):
             "referrer": None,
             "is_blocked": False
         }
+        save_db()
         
     user_data = users_db[user_id]
     
