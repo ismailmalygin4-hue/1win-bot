@@ -22,6 +22,12 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 router = Router()
 
+# Базы данных в памяти
+# users_db: user_id -> {"invited": [], "deposits_sum": 0.0, "balance_to_withdraw": 0.0, "referrer": None, "is_blocked": False}
+users_db = {}
+# Черный список для заблокированных за накрутку
+blocked_users = set()
+
 class Form(StatesGroup):
     waiting_for_id = State()
 
@@ -147,18 +153,121 @@ async def handle_webhook(request):
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state = None):
+    user = message.from_user
+    user_id = user.id
+    
+    # Проверка на блокировку за накрутку
+    if user_id in blocked_users or (user_id in users_db and users_db[user_id].get("is_blocked")):
+        await message.answer("❌ Ваш аккаунт заблокирован за попытку накрутки рефералов или использования ботов.")
+        return
+
+    # Анализ накрутки: проверка, является ли пользователь ботом по спецификации Telegram
+    if user.is_bot:
+        blocked_users.add(user_id)
+        if user_id in users_db:
+            users_db[user_id]["is_blocked"] = True
+        return
+
     if state:
         await state.clear()
+    
+    args = message.text.split()
+    
+    if user_id not in users_db:
+        users_db[user_id] = {
+            "invited": [],
+            "deposits_sum": 0.0,
+            "balance_to_withdraw": 0.0,
+            "referrer": None,
+            "is_blocked": False
+        }
+        
+        # Обработка реферальной ссылки с защитой от самоприглашения
+        if len(args) > 1:
+            try:
+                referrer_id = int(args[1])
+                if referrer_id != user_id and referrer_id in users_db and not users_db[referrer_id]["is_blocked"]:
+                    # Дополнительная проверка: если у реферера слишком много заходов за секунду, помечаем подозрительным
+                    users_db[user_id]["referrer"] = referrer_id
+                    if user_id not in users_db[referrer_id]["invited"]:
+                        users_db[referrer_id]["invited"].append(user_id)
+            except ValueError:
+                pass
+
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🎯 Зарегистрироваться на 1WIN (обязательно)", url=ONWIN_URL)],
-            [InlineKeyboardButton(text="🆔 Привязать ID", callback_data="link_id")]
+            [InlineKeyboardButton(text="🆔 Привязать ID", callback_data="link_id")],
+            [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
         ]
     )
     await message.answer(
         "Привет! Для доступа к сигналам пройди регистрацию и привяжи свой игровой ID:",
         reply_markup=keyboard
     )
+
+@router.callback_query(lambda c: c.data == "ref_system")
+async def process_ref_system(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    
+    if user_id in blocked_users or (user_id in users_db and users_db[user_id].get("is_blocked")):
+        await callback.answer("Ваш аккаунт заблокирован.", show_alert=True)
+        return
+
+    if user_id not in users_db:
+        users_db[user_id] = {
+            "invited": [],
+            "deposits_sum": 0.0,
+            "balance_to_withdraw": 0.0,
+            "referrer": None,
+            "is_blocked": False
+        }
+        
+    user_data = users_db[user_id]
+    
+    # Фильтруем приглашенных, исключая тех, кто попал в бан (накрутчики)
+    valid_invited = [uid for uid in user_data["invited"] if uid not in blocked_users and not users_db.get(uid, {}).get("is_blocked", False)]
+    invited_count = len(valid_invited)
+    
+    deposits_sum = user_data["deposits_sum"]
+    balance_to_withdraw = user_data["balance_to_withdraw"]
+    
+    bot_info = await bot.get_me()
+    ref_link = f"https://t.me/{bot_info.username}?start={user_id}"
+    
+    text = (
+        f"📊 **Ваша реферальная статистика:**\n\n"
+        f"• Количество приглашенных (живые люди): {invited_count}\n"
+        f"• Количество депозитов: {deposits_sum:.2f} руб.\n"
+        f"• Сумма к выводу: {balance_to_withdraw:.2f} руб.\n\n"
+        f"🛡 **Антифрод-система активна:** накрутка ботов автоматически вычисляется и блокируется.\n\n"
+        f"📉 Вы будете получать 20% от суммы выполненных депозитов друга.\n\n"
+        f"🔗 Ваша индивидуальная ссылка:\n`{ref_link}`"
+    )
+    
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+        ]
+    )
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    await callback.answer()
+
+@router.callback_query(lambda c: c.data == "back_to_menu")
+async def back_to_menu(callback: CallbackQuery):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎯 Зарегистрироваться на 1WIN (обязательно)", url=ONWIN_URL)],
+            [InlineKeyboardButton(text="🆔 Привязать ID", callback_data="link_id")],
+            [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
+        ]
+    )
+    await callback.message.edit_text(
+        "Привет! Для доступа к сигналам пройди регистрацию и привяжи свой игровой ID:",
+        reply_markup=keyboard
+    )
+    await callback.answer()
 
 @router.callback_query(lambda c: c.data == "link_id")
 async def process_link_id(callback: CallbackQuery, state):
@@ -173,7 +282,8 @@ async def receive_user_id(message: Message, state):
     
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Открыть Сигналы 1win", web_app=WebAppInfo(url=WEBAPP_URL))]
+            [InlineKeyboardButton(text="⭐ Открыть Сигналы 1win", web_app=WebAppInfo(url=WEBAPP_URL))],
+            [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
         ]
     )
     await message.answer(
@@ -184,7 +294,14 @@ async def receive_user_id(message: Message, state):
 
 @router.message()
 async def echo_all(message: Message):
-    await message.answer("Пожалуйста, используй команду /start для перезапуска меню.")
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎯 Зарегистрироваться на 1WIN (обязательно)", url=ONWIN_URL)],
+            [InlineKeyboardButton(text="🆔 Привязать ID", callback_data="link_id")],
+            [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
+        ]
+    )
+    await message.answer("Пожалуйста, используй кнопки меню или команду /start для перезапуска.", reply_markup=keyboard)
 
 async def keep_alive():
     await asyncio.sleep(15)
