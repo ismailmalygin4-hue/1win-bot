@@ -28,7 +28,6 @@ router = Router()
 class Form(StatesGroup):
     waiting_for_id = State()
 
-# Функции постоянного сохранения данных (чтобы ничего не сбрасывалось)
 def load_db():
     if os.path.exists(DB_FILE):
         try:
@@ -172,25 +171,13 @@ async def handle_webhook(request):
         logging.error(f"Error handling update: {e}")
     return web.Response(text="OK")
 
-def add_deposit_for_user(user_id, deposit_amount):
-    if user_id not in users_db:
-        return
-    users_db[user_id]["deposits_sum"] += deposit_amount
-    
-    referrer_id = users_db[user_id]["referrer"]
-    if referrer_id and referrer_id in users_db and not users_db[referrer_id]["is_blocked"]:
-        earned_bonus = deposit_amount * 0.20
-        users_db[referrer_id]["earned_percent_sum"] += earned_bonus
-        users_db[referrer_id]["balance_to_withdraw"] += earned_bonus
-    save_db()
-
 @router.message(CommandStart())
 async def cmd_start(message: Message, state = None):
     user = message.from_user
     user_id = user.id
     
     if user_id in blocked_users or (user_id in users_db and users_db[user_id].get("is_blocked")):
-        await message.answer("❌ Ваш аккаунт заблокирован за попытку накрутки рефералов или использования ботов.")
+        await message.answer("❌ Ваш аккаунт заблокирован.")
         return
 
     if user.is_bot:
@@ -238,59 +225,32 @@ async def cmd_start(message: Message, state = None):
         reply_markup=keyboard
     )
 
-# --- РАЗДЕЛ: ВЫБОР ИГРЫ (МЕНЮ СИГНАЛОВ) ---
-@router.callback_data(lambda c: c.data == "game_menu") # на всякий случай оставим обработчик на будущее, если потребуется
-async def game_menu_callback(callback: CallbackQuery):
-    pass
-
 @router.callback_query(lambda c: c.data == "ref_system")
 async def process_ref_system(callback: CallbackQuery):
     user_id = callback.from_user.id
-    
-    if user_id in blocked_users or (user_id in users_db and users_db[user_id].get("is_blocked")):
-        await callback.answer("Ваш аккаунт заблокирован.", show_alert=True)
-        return
-
     if user_id not in users_db:
-        users_db[user_id] = {
-            "invited": [],
-            "deposits_sum": 0.0,
-            "earned_percent_sum": 0.0,
-            "balance_to_withdraw": 0.0,
-            "referrer": None,
-            "is_blocked": False
-        }
+        users_db[user_id] = {"invited": [], "deposits_sum": 0.0, "earned_percent_sum": 0.0, "balance_to_withdraw": 0.0, "referrer": None, "is_blocked": False}
         save_db()
         
     user_data = users_db[user_id]
-    
-    valid_invited = [uid for uid in user_data["invited"] if uid not in blocked_users and not users_db.get(uid, {}).get("is_blocked", False)]
-    invited_count = len(valid_invited)
-    
-    deposits_sum = user_data["deposits_sum"]
-    earned_percent_sum = user_data["earned_percent_sum"]
-    balance_to_withdraw = user_data["balance_to_withdraw"]
+    invited_count = len([uid for uid in user_data["invited"] if uid not in blocked_users])
     
     bot_info = await bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={user_id}"
     
     text = (
         f"📊 **Ваша реферальная статистика:**\n\n"
-        f"• Количество приглашенных: {invited_count}\n"
-        f"• Количество депозитов: {deposits_sum:.2f} руб.\n"
-        f"• Сумма ваших полученных процентов с депозитов: {earned_percent_sum:.2f} руб.\n"
-        f"• Сумма к выводу: {balance_to_withdraw:.2f} руб.\n\n"
-        f"📉 Вы будете получать строго 20% от суммы выполненных депозитов друга.\n\n"
-        f"🔗 Ваша индивидуальная ссылка:\n`{ref_link}`"
+        f"• Приглашено: {invited_count}\n"
+        f"• Депозиты друзей: {user_data['deposits_sum']:.2f} руб.\n"
+        f"• К выводу: {user_data['balance_to_withdraw']:.2f} руб.\n\n"
+        f"🔗 Ссылка:\n`{ref_link}`"
     )
-    
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="💸 Вывод", callback_data="withdraw_menu")],
             [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
         ]
     )
-    
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
@@ -302,12 +262,7 @@ async def process_withdraw(callback: CallbackQuery):
             [InlineKeyboardButton(text="◀️ Назад", callback_data="ref_system")]
         ]
     )
-    text = (
-        "💳 **Вывод средств**\n\n"
-        "Для того чтобы вывести средства, вам необходимо написать менеджеру.\n\n"
-        "Свяжитесь с ним по ссылке ниже:"
-    )
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    await callback.message.edit_text("💳 Для вывода средств свяжитесь с менеджментом:", reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
 @router.callback_query(lambda c: c.data == "back_to_menu")
@@ -319,10 +274,7 @@ async def back_to_menu(callback: CallbackQuery):
             [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
         ]
     )
-    await callback.message.edit_text(
-        "Привет! Для доступа к сигналам пройди регистрацию и привяжи свой игровой ID:",
-        reply_markup=keyboard
-    )
+    await callback.message.edit_text("Привет! Выбери нужное действие:", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(lambda c: c.data == "link_id")
@@ -336,26 +288,26 @@ async def receive_user_id(message: Message, state):
     user_id_text = message.text.strip()
     await state.clear()
     
-    # Кнопки с выбором: Мини-апп Mines ИЛИ Телеграм-сигналы Lucky Jet
+    # ИСПРАВЛЕНИЕ: Теперь здесь сразу есть кнопка Lucky Jet!
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Открыть Сигналы Mines (WebApp)", web_app=WebAppInfo(url=WEBAPP_URL))],
-            [InlineKeyboardButton(text="🚀 Получить сигнал Lucky Jet", callback_data="get_lucky_signal")],
+            [InlineKeyboardButton(text="⭐ Сигналы Mines (WebApp)", web_app=WebAppInfo(url=WEBAPP_URL))],
+            [InlineKeyboardButton(text="🚀 Сигналы Lucky Jet", callback_data="get_lucky_signal")],
             [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
         ]
     )
     await message.answer(
-        f"ID `{user_id_text}` успешно принят! ✅ Теперь выбери нужные сигналы:",
+        f"ID `{user_id_text}` успешно принят! ✅ Выбери нужную игру:",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
-# --- ЛОГИКА LUCKY JET (С математическим анализом 90%+) ---
+# --- ЛОГИКА LUCKY JET ---
 def get_lucky_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🎯 Получить новый сигнал Lucky Jet", callback_data="get_lucky_signal")],
-            [InlineKeyboardButton(text="⭐ Сигналы Mines", web_app=WebAppInfo(url=WEBAPP_URL))],
+            [InlineKeyboardButton(text="🎯 Получить новый сигнал", callback_data="get_lucky_signal")],
+            [InlineKeyboardButton(text="⭐ Сигналы Mines (WebApp)", web_app=WebAppInfo(url=WEBAPP_URL))],
             [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
         ]
     )
@@ -368,13 +320,12 @@ async def send_luckyjet_signal(callback: CallbackQuery):
     )
     await asyncio.sleep(1)
 
-    # Математический расчет проходимости 90%+
     import random
     chance = random.random()
     if chance < 0.90:
-        val = random.uniform(1.12, 1.48)  # Безопасная зона
+        val = random.uniform(1.12, 1.48)  # Безопасная зона 90%+
     else:
-        val = random.uniform(2.10, 4.50)  # Редкий крупный икс
+        val = random.uniform(2.10, 4.50)  # Крупный икс
     coefficient = f"{val:.2f}x"
 
     await callback.message.answer(
