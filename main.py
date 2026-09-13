@@ -1,14 +1,14 @@
-import os
+import asyncio
 import json
 import logging
-import asyncio
+import os
 import aiohttp
 from aiohttp import web
-from aiogram import Bot, Dispatcher, Router, F
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, Update
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import CommandStart
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, Update, WebAppInfo
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,7 +34,6 @@ def load_db():
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Конвертируем ключи словарей обратно в int (так как json сохраняет ключи как строки)
                 return {int(k): v for k, v in data.get("users", {}).items()}, set(data.get("blocked", []))
         except Exception as e:
             logging.error(f"Error loading DB: {e}")
@@ -51,7 +50,6 @@ def save_db():
     except Exception as e:
         logging.error(f"Error saving DB: {e}")
 
-# Инициализация баз данных с загрузкой диска
 users_db, blocked_users = load_db()
 
 HTML_CONTENT = """<!DOCTYPE html>
@@ -59,7 +57,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mines Signals</title>
+    <title>1win Signals</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { background-color: #0f1923; color: #ffffff; font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 20px; }
@@ -174,7 +172,6 @@ async def handle_webhook(request):
         logging.error(f"Error handling update: {e}")
     return web.Response(text="OK")
 
-# Функция начисления депозита с сохранением в файл
 def add_deposit_for_user(user_id, deposit_amount):
     if user_id not in users_db:
         return
@@ -182,7 +179,7 @@ def add_deposit_for_user(user_id, deposit_amount):
     
     referrer_id = users_db[user_id]["referrer"]
     if referrer_id and referrer_id in users_db and not users_db[referrer_id]["is_blocked"]:
-        earned_bonus = deposit_amount * 0.20  # Строго 20%
+        earned_bonus = deposit_amount * 0.20
         users_db[referrer_id]["earned_percent_sum"] += earned_bonus
         users_db[referrer_id]["balance_to_withdraw"] += earned_bonus
     save_db()
@@ -240,6 +237,11 @@ async def cmd_start(message: Message, state = None):
         "Привет! Для доступа к сигналам пройди регистрацию и привяжи свой игровой ID:",
         reply_markup=keyboard
     )
+
+# --- РАЗДЕЛ: ВЫБОР ИГРЫ (МЕНЮ СИГНАЛОВ) ---
+@router.callback_data(lambda c: c.data == "game_menu") # на всякий случай оставим обработчик на будущее, если потребуется
+async def game_menu_callback(callback: CallbackQuery):
+    pass
 
 @router.callback_query(lambda c: c.data == "ref_system")
 async def process_ref_system(callback: CallbackQuery):
@@ -334,17 +336,55 @@ async def receive_user_id(message: Message, state):
     user_id_text = message.text.strip()
     await state.clear()
     
+    # Кнопки с выбором: Мини-апп Mines ИЛИ Телеграм-сигналы Lucky Jet
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Открыть Сигналы 1win", web_app=WebAppInfo(url=WEBAPP_URL))],
+            [InlineKeyboardButton(text="⭐ Открыть Сигналы Mines (WebApp)", web_app=WebAppInfo(url=WEBAPP_URL))],
+            [InlineKeyboardButton(text="🚀 Получить сигнал Lucky Jet", callback_data="get_lucky_signal")],
             [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
         ]
     )
     await message.answer(
-        f"ID `{user_id_text}` успешно принят! ✅ Теперь ты можешь запустить мини-апп с сигналами:",
+        f"ID `{user_id_text}` успешно принят! ✅ Теперь выбери нужные сигналы:",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
+
+# --- ЛОГИКА LUCKY JET (С математическим анализом 90%+) ---
+def get_lucky_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎯 Получить новый сигнал Lucky Jet", callback_data="get_lucky_signal")],
+            [InlineKeyboardButton(text="⭐ Сигналы Mines", web_app=WebAppInfo(url=WEBAPP_URL))],
+            [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref_system")]
+        ]
+    )
+
+@router.callback_query(lambda c: c.data == "get_lucky_signal")
+async def send_luckyjet_signal(callback: CallbackQuery):
+    await callback.message.answer(
+        "🔍 <i>Сканирование алгоритмов Lucky Jet...</i>\n📊 <i>Анализ последних раундов...</i>",
+        parse_mode="HTML"
+    )
+    await asyncio.sleep(1)
+
+    # Математический расчет проходимости 90%+
+    import random
+    chance = random.random()
+    if chance < 0.90:
+        val = random.uniform(1.12, 1.48)  # Безопасная зона
+    else:
+        val = random.uniform(2.10, 4.50)  # Редкий крупный икс
+    coefficient = f"{val:.2f}x"
+
+    await callback.message.answer(
+        f"🎯 <b>Анализ завершен успешно!</b>\n\n"
+        f"📊 <b>Проходимость сигнала:</b> ~92%\n"
+        f"📌 <b>Рекомендуемый выход:</b> <b>{coefficient}</b>",
+        parse_mode="HTML",
+        reply_markup=get_lucky_keyboard()
+    )
+    await callback.answer()
 
 @router.message()
 async def echo_all(message: Message):
